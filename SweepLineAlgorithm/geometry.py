@@ -78,7 +78,6 @@ class Segment(object):
     def __init__(self, p, q, graph=None):
         # the current node of
         self.graph = graph
-        self.current = self.graph.current
         # p is the left-most point of each segment
         if p.node < q.node:
             self.p = p
@@ -93,22 +92,22 @@ class Segment(object):
         self.params = {}
         self.refresh()
 
-    def set_p(self, p):
-        self.p.node = p.node
+    def set_p_node(self, n):
+        self.p.node = n
         self.refresh()
 
-    def set_q(self, q):
-        self.q.node = q.node
+    def set_q_node(self, n):
+        self.q.node = n
         self.refresh()
 
     def actual_y(self):
-        if self.current == self.p:
+        if self.graph.current == self.p:
             return self.p.node.y
-        elif self.current == self.q:
+        elif self.graph.current == self.q:
             return self.q.node.y
         else:
             if self.params['m']:
-                return self.params['m'] * self.current.node.x + self.params['q']
+                return self.params['m'] * self.graph.current.node.x + self.params['q']
             else:
                 return self.p.node.y
 
@@ -127,6 +126,13 @@ class Segment(object):
             return self.p.node.y - self.params['m'] * self.p.node.x
         else:
             return None
+
+    # res > 0 se il segment e' orizzontale, verticale o obliquo.
+    # 0 < res < 1 piu' ci si avvicina ai casi opposti (22.5deg, 67.5deg, ...)
+    def squareness(self):
+        m = self.get_m()
+        m = math.pi/2 if m is None else math.atan(m)
+        return math.sin(m * 4) ** 4
 
     def __str__(self):
         return "({0},{1})".format(self.p.node.id, self.q.node.id)
@@ -216,6 +222,8 @@ class Graph(object):
         self.original_n_nodes = len(self.nodes)
         self.current = Point()
         self.edges = edges
+        self.segments = [Segment(Point(self.nodes[e[0]]), \
+            Point(self.nodes[e[1]]), self) for e in self.edges]
 
     def get_node(self, x, y):
         target = Node(-1, x, y)
@@ -227,23 +235,20 @@ class Graph(object):
         return target
 
     def intersection_number(self):
-        if len(self.edges) < 50:
+        if len(self.segments) < 50:
+            # brute force faster on small graphs
             return self.brute_force()
+            # return self.sweep_line_algorithm()
         else: return self.sweep_line_algorithm()
 
     def brute_force(self):
-        segments = self.get_segments()
         #print [str(x) for x in segments]
         res = 0
-        for i in range(len(segments)-1):
-            for j in range(i+1, len(segments)):
-                if segments[i].intersect(segments[j]):
+        for i in range(len(self.segments)-1):
+            for j in range(i+1, len(self.segments)):
+                if self.segments[i].intersect(self.segments[j]):
                     res += 1
         return res
-
-    def get_segments(self):
-        return [Segment(Point(self.nodes[e[0]]), \
-            Point(self.nodes[e[1]]), self) for e in self.edges]
 
     def sweep_line_algorithm(self):
             self.current = Point()
@@ -251,9 +256,8 @@ class Graph(object):
             pointsPQ = PriorityQueue()
             tree = TreeSet()
 
-            segments = self.get_segments()
-            pointsPQ.pushAll([seg.p for seg in segments])
-            pointsPQ.pushAll([seg.q for seg in segments])
+            pointsPQ.pushAll([seg.p for seg in self.segments])
+            pointsPQ.pushAll([seg.q for seg in self.segments])
 
             res = 0
             #print [str(x) for x in pointsPQ]
@@ -308,8 +312,11 @@ class Graph(object):
 
                     #print "After swap:", s1, s2, s1 is tree.lower(s2), s2 is tree.lower(s1)
                     #print "Modifying segments starts"
-                    s1.p.node = self.current.node
-                    s2.p.node = self.current.node
+                    old_s1 = s1.p.node
+                    old_s2 = s2.p.node
+
+                    s1.set_p_node(self.current.node)
+                    s2.set_p_node(self.current.node)
 
                     #print "Tree after modification:", [str(x) for x in tree]
 
@@ -351,6 +358,10 @@ class Graph(object):
                     else:
                         print "Error" #raise SweepPlaneException("Intersection point error!")
                     res += 1
+
+                    s1.set_p_node(old_s1)
+                    s2.set_p_node(old_s2)
+
                 else:
                     print "Error 2" #raise SweepPlaneException("Node without status!")
                 #print "Tree", [str(x) for x in tree]
@@ -358,7 +369,11 @@ class Graph(object):
             self.nodes = self.nodes[:self.original_n_nodes]
             return res
 
-    def edges_
+    def edges_total_length(self):
+        return sum([len(s) for s in self.segments])
+
+    def edges_squareness(self):
+        return sum([s.squareness() for s in self.segments])
 
     def plot(self):
         res = nx.Graph()
@@ -366,8 +381,8 @@ class Graph(object):
         for i in range(len(self.nodes)):
             res.add_node(i, pos=self.nodes[i].coord())
 
-        for e in self.edges:
-            res.add_edge(e[0], e[1])
+        for e in self.segments:
+            res.add_edge(e.p.node.id, e.q.node.id)
 
         pos = nx.get_node_attributes(res, 'pos')
         nx.draw(res, pos, with_labels = 'True')
