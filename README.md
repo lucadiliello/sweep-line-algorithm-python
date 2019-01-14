@@ -1,11 +1,11 @@
 # SweepLineAlgorithm
 
-A Python implementation of the Sweep Plane Algorithm.
-The algorithm works fine if no segment is perfectly vertical, otherwise the number of intersections found could be different from the real result.
+A Python implementation of the Sweep Line Algorithm.
+The algorithm works fine if no segment is perfectly vertical, otherwise the number of intersections found could be different from the real result. However, in most cases it seems to work fine even with vertical segments.
 
 It uses a custom version of a PriorityQueue (to store the events) and a custom version of a TreeSet (to store the state segments).
 
-Open and launch
+Launch
 ```
 python2 example.py
 ```
